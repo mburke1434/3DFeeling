@@ -20,7 +20,7 @@ function App() {
           <Form.Group controlId="exampleForm.ControlTextarea1">
             <Form.Label>Please enter a text sample!</Form.Label>
             <Form.Control as="textarea" size="lg" rows="6" />
-            <Link to="/users">
+            <Link to="/submit">
               <Button variant="primary" type="submit">
                 Submit
               </Button>
