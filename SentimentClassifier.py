@@ -6,6 +6,9 @@ import pandas as pd
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from nltk.tokenize import RegexpTokenizer
 import math
+import dill as pickle
+import os
+
 
 
 
@@ -86,61 +89,104 @@ def categorizeSentimentcomplex(v, a):
     #machine learning is just if statements
     return sentiment
 
+def read_data():
+    print("Reading data...")
+    # The emobank dataset contains text entries scored for valence, arousal, and dominance.
+    eb = pd.read_csv('emobank.csv', index_col=0)
 
+    # Data is read out of emobank and stored, in a useful way in vad_docs (txt,v,a,d)
+    vad_docs = []
 
-print("Building classifier.")
-print("Reading data...")
-# The emobank dataset contains text entries scored for valence, arousal, and dominance.
-eb = pd.read_csv('emobank.csv', index_col=0)
+    #read emobank
+    for index, row in eb.iterrows():
+        v = float(row["V"])
+        a = float(row["A"])
+        d = float(row["D"])
+        text = row["text"]
+        # transform VAD values from 6 pt positive scale to range[0, 1]
+        v = v / 6
+        a = a / 6
+        d = d / 6
+        try:
+            # lemmatize, remove stop words, and transform sentence to list of words to build training docs
+            txt = sentenceToFeatures(text)
+            vad_docs.append((txt, v,a,d))
 
-# Data is read out of emobank and stored, in a useful way in vad_docs (txt,v,a,d)
-vad_docs = []
+        except:
+            #pandas struggles to read certain strings...
+            print("Failed to add text: ", text)
 
-#read emobank
-for index, row in eb.iterrows():
-    v = float(row["V"])
-    a = float(row["A"])
-    d = float(row["D"])
-    text = row["text"]
-    # transform VAD values from 6 pt positive scale to range[0, 1]
-    v = v / 6
-    a = a / 6
-    d = d / 6
-    try:
-        # lemmatize, remove stop words, and transform sentence to list of words to build training docs
-        txt = sentenceToFeatures(text)
-        vad_docs.append((txt, v,a,d))
-        
-    except:
-        #pandas struggles to read certain strings...
-        print("Failed to add text: ", text)
+    return vad_docs
 
-print("Building training sets...")
-# Convert list of docs to dictionary format required by nltk classifier
-valence_training_set = [({word: (True) for word in x[0]}, x[1]) for x in vad_docs]
-arousal_training_set = [({word: (True) for word in x[0]}, x[2]) for x in vad_docs]
-dominance_training_set = [({word: (True) for word in x[0]}, x[3]) for x in vad_docs]
+def train_classifiers(vad_docs):
+    print("Building training sets...")
+    # Convert list of docs to dictionary format required by nltk classifier
+    valence_training_set = [({word: (True) for word in x[0]}, x[1]) for x in vad_docs]
+    arousal_training_set = [({word: (True) for word in x[0]}, x[2]) for x in vad_docs]
+    dominance_training_set = [({word: (True) for word in x[0]}, x[3]) for x in vad_docs]
 
-print("Training Valence Classifier...")
-# Train classifier using naive bayes from nltk
-valence_classifier = NaiveBayesClassifier.train(valence_training_set)
+    print("Training Valence Classifier...")
+    # Train classifier using naive bayes from nltk
+    valence_classifier = NaiveBayesClassifier.train(valence_training_set)
 
-print("Training Arousal Classifier...")
-# Train classifier using naive bayes from nltk
-arousal_classifier = NaiveBayesClassifier.train(arousal_training_set)
+    print("Training Arousal Classifier...")
+    # Train classifier using naive bayes from nltk
+    arousal_classifier = NaiveBayesClassifier.train(arousal_training_set)
 
-print("Training Dominance Classifier...")
-# Train classifier using naive bayes from nltk
-dominance_classifier = NaiveBayesClassifier.train(dominance_training_set)
+    print("Training Dominance Classifier...")
+    # Train classifier using naive bayes from nltk
+    dominance_classifier = NaiveBayesClassifier.train(dominance_training_set)
 
+    print('done.')
+    return valence_classifier, arousal_classifier, dominance_classifier
 
-def analyzeSentiment(sentence):
+def analyzeSentiment(sentence, valence_classifier, arousal_classifier, dominance_classifier):
     #convert string to format readable by classifier. Lemmatizes and removes stopwords as well.
     test_data_features = {word: True for word in sentenceToFeatures(sentence)}
     valence = arousal_classifier.classify(test_data_features)
     arousal = arousal_classifier.classify(test_data_features)
     dominance = dominance_classifier.classify(test_data_features)
     return (valence, arousal, dominance)
+
+
+valence_classifier = NaiveBayesClassifier
+arousal_classifier = NaiveBayesClassifier
+dominance_classifier = NaiveBayesClassifier
+
+#Load in or train classifiers
+if not os.path.exists('valence_nb_classifier.pkl') \
+        or not os.path.exists('arousal_nb_classifier.pkl') \
+        or not os.path.exists('dominance_nb_classifier.pkl'):
+    # if models are not stored locally, then train classifiers
+    vad_docs = read_data()
+    valence_classifier, arousal_classifier, dominance_classifier = train_classifiers(vad_docs)
+
+    # and store models locally
+    print('pickling classifiers...')
+    with open('valence_nb_classifier.pkl', 'wb') as fout:
+        pickle.dump(valence_classifier, fout)
+
+    with open('arousal_nb_classifier.pkl', 'wb') as fout:
+        pickle.dump(arousal_classifier, fout)
+
+    with open('dominance_nb_classifier.pkl', 'wb') as fout:
+        pickle.dump(dominance_classifier, fout)
+
+    print('done.')
+else:
+    # if models are stored locally, then load in classifiers
+    print('loading models...')
+    with open('valence_nb_classifier.pkl', 'rb') as fin:
+        valence_classifier_model = pickle.load(fin)
+    print('1/3')
+
+    with open('arousal_nb_classifier.pkl', 'rb') as fin:
+        arousal_classifier_model = pickle.load(fin)
+    print('2/3')
+
+    with open('dominance_nb_classifier.pkl', 'rb') as fin:
+        dominance_classifier_model = pickle.load(fin)
+    print('done.')
 
 from nltk.tokenize import sent_tokenize
 
@@ -149,7 +195,7 @@ testdata = "These are some sentences. I love writing sentences. Sometimes when I
 
 result = []
 for sentence in sent_tokenize(testdata):
-    sentiment = analyzeSentiment(sentence)
+    sentiment = analyzeSentiment(sentence, valence_classifier, arousal_classifier, dominance_classifier)
     result.append(sentence + "vad" + str([x for x in sentiment]))
 
 print(result)
