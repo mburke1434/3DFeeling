@@ -14,20 +14,29 @@ import {FormControl, Form, Button} from 'react-bootstrap';
 function App() {
   return (
     <div className="App">
-      <header className="App-header">
+      <div className="background">
+        <div className="item">
+        <header className="App-header">
+            <Form>
+            <Form.Group controlId="exampleForm.ControlTextarea1">
+                <Form.Label>Please enter a text sample!</Form.Label>
+                <Form.Control as="textarea" size="lg" rows="6" />
+                <Link to="/submit">
+                <Button variant="primary" type="submit">
+                    Submit
+                </Button>
+                </Link>
+            </Form.Group>
+            </Form>
+        </header>
+        </div>
+        <div className="divider" />
+        <div className="item">
+          <p>Or choose a file to upload</p>
+          <input type="file"/>
+        </div>
 
-        <Form>
-          <Form.Group controlId="exampleForm.ControlTextarea1">
-            <Form.Label>Please enter a text sample!</Form.Label>
-            <Form.Control as="textarea" size="lg" rows="6" />
-            <Link to="/submit">
-              <Button variant="primary" type="submit">
-                Submit
-              </Button>
-            </Link>
-          </Form.Group>
-        </Form>
-      </header>
+      </div>
     </div>
   );
 }
