@@ -12,23 +12,7 @@ import os
 
 
 
-"""
-    Removes stop words, and lemmatizes words in order to remove noise from data 
-    and reduce the size of the number of values trained over.
-    Takes in a sentence as a string, and returns a list of words.
-"""
-def sentenceToFeatures(sentence):
-    lem = WordNetLemmatizer()
-    txt = []
-    for word in nltk.word_tokenize(sentence):
-        word = word.lower()
-        word = lem.lemmatize(word, "v")
-        if word not in stopwords.words("english"):
-            txt.append(word)
-            # Would be time efficent to add words to dictionary here,
-            # but to keep this function more general I will not.
-            #dictionary.add(word)
-    return txt
+
 
 """
     Returns an emotion value based on a valence and arousal score.
@@ -44,6 +28,19 @@ def categorizeSentiment(v, a):
     if v > 0 and a > 0:
         sent = "happy"
     return sent
+
+def sentenceToFeatures(sentence):
+    lem = WordNetLemmatizer()
+    txt = []
+    for word in nltk.word_tokenize(sentence):
+        word = word.lower()
+        word = lem.lemmatize(word, "v")
+        if word not in stopwords.words("english"):
+            txt.append(word)
+            # Would be time efficent to add words to dictionary here,
+            # but to keep this function more general I will not.
+            # dictionary.add(word)
+    return txt
 
 """
     Categorizes sentiment into more than the four most basic categories.
@@ -140,62 +137,103 @@ def train_classifiers(vad_docs):
     print('done.')
     return valence_classifier, arousal_classifier, dominance_classifier
 
-def analyzeSentiment(sentence, valence_classifier, arousal_classifier, dominance_classifier):
-    #convert string to format readable by classifier. Lemmatizes and removes stopwords as well.
-    test_data_features = {word: True for word in sentenceToFeatures(sentence)}
-    valence = arousal_classifier.classify(test_data_features)
-    arousal = arousal_classifier.classify(test_data_features)
-    dominance = dominance_classifier.classify(test_data_features)
-    return (valence, arousal, dominance)
 
 
-valence_classifier = NaiveBayesClassifier
-arousal_classifier = NaiveBayesClassifier
-dominance_classifier = NaiveBayesClassifier
 
-#Load in or train classifiers
-if not os.path.exists('valence_nb_classifier.pkl') \
-        or not os.path.exists('arousal_nb_classifier.pkl') \
-        or not os.path.exists('dominance_nb_classifier.pkl'):
-    # if models are not stored locally, then train classifiers
-    vad_docs = read_data()
-    valence_classifier, arousal_classifier, dominance_classifier = train_classifiers(vad_docs)
+class VADClassifier:
 
-    # and store models locally
-    print('pickling classifiers...')
-    with open('valence_nb_classifier.pkl', 'wb') as fout:
-        pickle.dump(valence_classifier, fout)
+    def __init__(self):
+        self.valence_classifier, self.arousal_classifier, self.dominance_classifier = self.train()
 
-    with open('arousal_nb_classifier.pkl', 'wb') as fout:
-        pickle.dump(arousal_classifier, fout)
+    def train(self):
+        result = ()
+        if not os.path.exists('valence_nb_classifier.pkl') \
+                or not os.path.exists('arousal_nb_classifier.pkl') \
+                or not os.path.exists('dominance_nb_classifier.pkl'):
+            # if models are not stored locally, then train classifiers
+            vad_docs = read_data()
+            valence_classifier, arousal_classifier, dominance_classifier = train_classifiers(vad_docs)
+            result = (valence_classifier, arousal_classifier, dominance_classifier)
 
-    with open('dominance_nb_classifier.pkl', 'wb') as fout:
-        pickle.dump(dominance_classifier, fout)
+            # and store models locally
+            print('pickling classifiers...')
+            with open('valence_nb_classifier.pkl', 'wb') as fout:
+                pickle.dump(valence_classifier, fout)
 
-    print('done.')
-else:
-    # if models are stored locally, then load in classifiers
-    print('loading models...')
-    with open('valence_nb_classifier.pkl', 'rb') as fin:
-        valence_classifier_model = pickle.load(fin)
-    print('1/3')
+            with open('arousal_nb_classifier.pkl', 'wb') as fout:
+                pickle.dump(arousal_classifier, fout)
 
-    with open('arousal_nb_classifier.pkl', 'rb') as fin:
-        arousal_classifier_model = pickle.load(fin)
-    print('2/3')
+            with open('dominance_nb_classifier.pkl', 'wb') as fout:
+                pickle.dump(dominance_classifier, fout)
 
-    with open('dominance_nb_classifier.pkl', 'rb') as fin:
-        dominance_classifier_model = pickle.load(fin)
-    print('done.')
+            print('done.')
+        else:
+            # if models are stored locally, then load in classifiers
+            print('loading models...')
+            with open('valence_nb_classifier.pkl', 'rb') as fin:
+                valence_classifier = pickle.load(fin)
+            print('1/3')
+
+            with open('arousal_nb_classifier.pkl', 'rb') as fin:
+                arousal_classifier = pickle.load(fin)
+            print('2/3')
+
+            with open('dominance_nb_classifier.pkl', 'rb') as fin:
+                dominance_classifier = pickle.load(fin)
+
+        return valence_classifier, arousal_classifier, dominance_classifier
+            
+
+    """
+        Removes stop words, and lemmatizes words in order to remove noise from data 
+        and reduce the size of the number of values trained over.
+        Takes in a sentence as a string, and returns a list of words.
+    """
+    def sentenceToFeatures(self, sentence):
+        lem = WordNetLemmatizer()
+        txt = []
+        for word in nltk.word_tokenize(sentence):
+            word = word.lower()
+            word = lem.lemmatize(word, "v")
+            if word not in stopwords.words("english"):
+                txt.append(word)
+                # Would be time efficent to add words to dictionary here,
+                # but to keep this function more general I will not.
+                # dictionary.add(word)
+        return txt
+
+    def analyzeSentiment(self, sentence):
+        # convert string to format readable by classifier. Lemmatizes and removes stopwords as well.
+        test_data_features = {word: True for word in self.sentenceToFeatures(sentence)}
+        return self.classify(test_data_features)
+
+    def classify(self, data_features):
+        v = self.classify_valence(data_features)
+        a = self.classify_arousal(data_features)
+        d = self.classify_dominance(data_features)
+        return v,a,d
+
+    def classify_valence(self, data_features):
+        return self.valence_classifier.classify(data_features)
+
+    def classify_arousal(self, data_features):
+        return self.arousal_classifier.classify(data_features)
+
+    def classify_dominance(self, data_features):
+        return self.dominance_classifier.classify(data_features)
+
 
 from nltk.tokenize import sent_tokenize
 
-testdata = "These are some sentences. I love writing sentences. Sometimes when I write sentences, I get sad. " \
-           "I hope someday to write a sentence all on my own. Some people say that sentences are not real."
+if __name__ == "__main__":
+    vad = VADClassifier()
 
-result = []
-for sentence in sent_tokenize(testdata):
-    sentiment = analyzeSentiment(sentence, valence_classifier, arousal_classifier, dominance_classifier)
-    result.append(sentence + "vad" + str([x for x in sentiment]))
+    testdata = "These are some sentences. I love writing sentences. Sometimes when I write sentences, I get sad. " \
+               "I hope someday to write a sentence all on my own. Some people say that sentences are not real."
 
-print(result)
+    result = []
+    for sentence in sent_tokenize(testdata):
+        sentiment = vad.analyzeSentiment(sentence)
+        result.append(sentence + "vad" + str([x for x in sentiment]))
+
+    print(result)
