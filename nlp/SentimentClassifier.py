@@ -180,6 +180,8 @@ class VADClassifier:
 
             with open('dominance_nb_classifier.pkl', 'rb') as fin:
                 dominance_classifier = pickle.load(fin)
+            print('3/3')
+            print('done')
 
         return valence_classifier, arousal_classifier, dominance_classifier
             
